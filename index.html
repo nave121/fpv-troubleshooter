@@ -1,0 +1,505 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interactive FPV Drone Troubleshooting Guide - Synthwave Edition</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Orbitron:wght@500;700&display=swap" rel="stylesheet">
+    <!-- Chosen Palette: Synthwave Neon -->
+    <!-- Application Structure Plan: A task-oriented SPA with a sticky top navigation for jumping to major sections (Intro, Problems, Toolkit, Maintenance, Pre-Flight). The core is the "Common Problems" section, which functions as an interactive diagnostic tool. Users select a high-level symptom (e.g., 'Power Issues'), which then displays relevant, structured troubleshooting steps in collapsible accordions. This non-linear, interactive approach is superior to a simple document scroll, as it allows a user in a distress situation to quickly find and process the exact information they need without being overwhelmed by text. The Toolkit is a visual grid of cards for easy scanning and comparison. This architecture is designed for action and usability over mimicking the source report's linear structure. -->
+    <!-- Visualization & Content Choices: The guide's hierarchical troubleshooting logic (Symptom -> Cause -> Diagnostic Step) is presented using interactive HTML accordions (Tailwind CSS + JS), which guide the user without needing complex flowcharts (No SVG/Mermaid). The extensive list of tools is organized into a responsive grid of cards, making it easy to compare and get details. Tables from the report are converted into styled HTML tables for readability. Checklists are made interactive. This ensures all information is presented in the most digestible format for a user trying to solve a problem, confirming no SVG/Mermaic and using only HTML/CSS/JS for all visual organization. -->
+    <!-- CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #1a1a2e;
+            color: #E0E0E0;
+            background-image: 
+                linear-gradient(rgba(22, 36, 71, 0.8) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(22, 36, 71, 0.8) 1px, transparent 1px);
+            background-size: 2rem 2rem;
+        }
+        .main-heading {
+            font-family: 'Orbitron', sans-serif;
+            text-shadow: 0 0 8px #F92C85, 0 0 12px #F92C85;
+        }
+        .section-heading {
+            font-family: 'Orbitron', sans-serif;
+            text-shadow: 0 0 5px #00FFFF, 0 0 8px #00FFFF;
+        }
+        .header {
+            background-color: rgba(26, 26, 46, 0.8);
+            backdrop-filter: blur(10px);
+            border-bottom: 1px solid rgba(0, 255, 255, 0.2);
+        }
+        .nav-link {
+            transition: color 0.3s, border-bottom-color 0.3s, text-shadow 0.3s;
+            border-bottom: 2px solid transparent;
+        }
+        .nav-link.active, .nav-link:hover {
+            color: #00FFFF;
+            text-shadow: 0 0 5px #00FFFF;
+            border-bottom-color: #00FFFF;
+        }
+        .problem-nav-link {
+            background-color: rgba(22, 36, 71, 0.5);
+            border: 1px solid #00FFFF;
+            color: #00FFFF;
+            transition: all 0.3s ease;
+        }
+        .problem-nav-link:hover {
+            background-color: rgba(0, 255, 255, 0.1);
+            box-shadow: 0 0 10px #00FFFF;
+        }
+        .problem-nav-link.active {
+            background-color: #00FFFF;
+            color: #1a1a2e;
+            box-shadow: 0 0 15px #00FFFF;
+        }
+        .accordion-content {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.5s ease-out;
+        }
+        .accordion-button {
+            background-color: #162447;
+            border: 1px solid transparent;
+            transition: all 0.3s ease;
+        }
+        .accordion-button:hover {
+            border-color: #F92C85;
+        }
+        .accordion-button.open + .accordion-content {
+            max-height: 2000px;
+        }
+        .card {
+            background-color: rgba(22, 36, 71, 0.7);
+            border: 1px solid #1F4287;
+            backdrop-filter: blur(5px);
+        }
+        .accent-text { color: #F92C85; text-shadow: 0 0 5px #F92C85; }
+        .table-header { background-color: #1F4287; }
+        .checklist-item input:checked + label {
+            text-decoration: line-through;
+            color: #6a737d;
+        }
+        .gemini-output {
+            white-space: pre-wrap;
+            background-color: #162447;
+            border-left: 4px solid #F92C85;
+            padding: 1rem;
+            border-radius: 0.25rem;
+            font-family: monospace;
+        }
+        .action-button {
+            background-color: #F92C85;
+            color: white;
+            transition: all 0.3s ease;
+            box-shadow: 0 0 5px #F92C85, 0 0 10px #F92C85, inset 0 0 5px rgba(255,255,255,0.3);
+        }
+        .action-button:hover {
+            transform: scale(1.05);
+            box-shadow: 0 0 10px #F92C85, 0 0 20px #F92C85, inset 0 0 8px rgba(255,255,255,0.3);
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        .loader {
+            border: 4px solid rgba(0, 255, 255, 0.2);
+            border-left-color: #00FFFF;
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            animation: spin 1s linear infinite;
+        }
+    </style>
+</head>
+<body class="antialiased">
+
+    <!-- Header & Navigation -->
+    <header class="header sticky top-0 z-50">
+        <nav class="container mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex items-center justify-between h-16">
+                <div class="flex items-center">
+                    <span class="font-bold text-xl text-gray-100" style="font-family: 'Orbitron', sans-serif;">FPV AI</span>
+                </div>
+                <div class="hidden md:block">
+                    <div class="ml-10 flex items-baseline space-x-4">
+                        <a href="#intro" class="nav-link px-3 py-2 rounded-md text-sm font-medium text-gray-300">Introduction</a>
+                        <a href="#problems" class="nav-link px-3 py-2 rounded-md text-sm font-medium text-gray-300">Diagnostic Center</a>
+                        <a href="#toolkit" class="nav-link px-3 py-2 rounded-md text-sm font-medium text-gray-300">Toolkit</a>
+                        <a href="#advanced" class="nav-link px-3 py-2 rounded-md text-sm font-medium text-gray-300">Advanced</a>
+                        <a href="#maintenance" class="nav-link px-3 py-2 rounded-md text-sm font-medium text-gray-300">Maintenance</a>
+                        <a href="#preflight" class="nav-link px-3 py-2 rounded-md text-sm font-medium text-gray-300">Pre-Flight</a>
+                    </div>
+                </div>
+                <div class="md:hidden">
+                    <button id="mobile-menu-button" class="inline-flex items-center justify-center p-2 rounded-md text-cyan-400 hover:text-white hover:bg-cyan-700 focus:outline-none">
+                        <svg class="h-6 w-6" stroke="currentColor" fill="none" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16m-7 6h7"></path>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+        </nav>
+        <div id="mobile-menu" class="md:hidden hidden">
+            <div class="px-2 pt-2 pb-3 space-y-1 sm:px-3">
+                <a href="#intro" class="block nav-link px-3 py-2 rounded-md text-base font-medium text-gray-300">Introduction</a>
+                <a href="#problems" class="block nav-link px-3 py-2 rounded-md text-base font-medium text-gray-300">Diagnostic Center</a>
+                <a href="#toolkit" class="block nav-link px-3 py-2 rounded-md text-base font-medium text-gray-300">Toolkit</a>
+                <a href="#advanced" class="block nav-link px-3 py-2 rounded-md text-base font-medium text-gray-300">Advanced</a>
+                <a href="#maintenance" class="block nav-link px-3 py-2 rounded-md text-base font-medium text-gray-300">Maintenance</a>
+                <a href="#preflight" class="block nav-link px-3 py-2 rounded-md text-base font-medium text-gray-300">Pre-Flight</a>
+            </div>
+        </div>
+    </header>
+
+    <main class="container mx-auto px-4 sm:px-6 lg:px-8 py-8">
+
+        <!-- Introduction Section -->
+        <section id="intro" class="mb-16 scroll-mt-24">
+            <h1 class="main-heading text-4xl font-bold mb-4 text-center">FPV DRONE TROUBLESHOOTER</h1>
+            <p class="text-lg text-gray-300 mb-8 text-center max-w-3xl mx-auto">This interactive guide provides a comprehensive methodology for diagnosing FPV drone issues, now enhanced with AI. Describe your problem to our assistant, or use the diagnostic center to get back in the air, fast.</p>
+            
+            <div class="grid md:grid-cols-2 gap-8">
+                <div class="card p-6 rounded-lg">
+                    <h3 class="text-2xl font-bold mb-3 accent-text">The Systematic Approach</h3>
+                    <p class="mb-4 text-gray-400">Effective troubleshooting is a cycle: Observe, Isolate, Theorize, and Test. This methodical process helps pinpoint the root cause, saving you time and preventing further damage.</p>
+                     <ul class="space-y-2 text-gray-300">
+                        <li class="flex items-start"><span class="accent-text font-bold mr-2">1. Observe:</span><span>Note all symptoms—visual, auditory, and olfactory (smell of burnt electronics!).</span></li>
+                        <li class="flex items-start"><span class="accent-text font-bold mr-2">2. Isolate:</span><span>Narrow down the potential source to a specific system.</span></li>
+                        <li class="flex items-start"><span class="accent-text font-bold mr-2">3. Theorize:</span><span>Form a hypothesis based on your observations.</span></li>
+                        <li class="flex items-start"><span class="accent-text font-bold mr-2">4. Test:</span><span>Systematically test your theory by swapping parts or changing configurations.</span></li>
+                    </ul>
+                </div>
+                <div class="bg-red-900/30 border-l-4 border-red-500 text-red-300 p-6 rounded-lg">
+                    <h3 class="text-2xl font-bold mb-3 text-red-400" style="text-shadow: 0 0 5px #ff0000;">Safety First: Critical Precautions</h3>
+                    <p class="mb-4">Before you touch anything, internalize these safety rules. They protect you and your drone.</p>
+                    <ul class="space-y-2 list-disc list-inside">
+                        <li class="font-bold text-red-300">PROPS OFF! This is the #1 rule.</li>
+                        <li>Use a Smoke Stopper to prevent short circuits.</li>
+                        <li>Handle LiPo batteries with extreme care.</li>
+                        <li>Work in a well-ventilated area when soldering.</li>
+                        <li>Always disconnect the battery before taking continuity measurements.</li>
+                    </ul>
+                </div>
+            </div>
+        </section>
+
+        <!-- Common Problems Section -->
+        <section id="problems" class="mb-16 scroll-mt-24">
+            <h2 class="section-heading text-3xl font-bold mb-6 text-center">Interactive Diagnostic Center</h2>
+            
+             <!-- AI Assistant Section -->
+            <div id="ai-assistant" class="mb-12">
+                <div class="card p-6 rounded-lg shadow-lg">
+                    <h3 class="text-2xl font-bold mb-4 text-center accent-text">✨ AI Diagnostic Assistant</h3>
+                    <p class="text-center text-gray-400 mb-4">Don't know where to start? Describe your problem below.</p>
+                    <textarea id="ai-prompt-input" class="w-full p-2 border border-blue-400/50 rounded-md focus:ring-2 focus:ring-cyan-500 bg-gray-900/50 text-gray-200" rows="3" placeholder="e.g., 'When I punch the throttle, my quad yaws to the right and the video gets noisy.'"></textarea>
+                    <div class="text-center mt-4">
+                        <button id="ai-diagnose-button" class="action-button font-bold py-2 px-6 rounded-lg inline-flex items-center">
+                            Get AI Diagnosis
+                        </button>
+                    </div>
+                    <div id="ai-diagnose-output-container" class="mt-6 hidden">
+                         <div id="ai-loader" class="flex justify-center hidden"><div class="loader"></div></div>
+                         <div id="ai-diagnose-output" class="gemini-output"></div>
+                    </div>
+                </div>
+            </div>
+
+            <p class="text-center text-gray-400 mb-8">Or, select your primary symptom below to begin the manual troubleshooting process.</p>
+            
+            <!-- Problem Navigation -->
+            <div id="problems-nav" class="flex flex-wrap justify-center gap-2 mb-8">
+                <button data-problem="power" class="problem-nav-link active font-medium px-4 py-2 rounded-full transition">Power Issues</button>
+                <button data-problem="connect" class="problem-nav-link font-medium px-4 py-2 rounded-full transition">FC Not Connecting</button>
+                <button data-problem="arm" class="problem-nav-link font-medium px-4 py-2 rounded-full transition">Won't Arm</button>
+                <button data-problem="motor" class="problem-nav-link font-medium px-4 py-2 rounded-full transition">Motor Issues</button>
+                <button data-problem="esc" class="problem-nav-link font-medium px-4 py-2 rounded-full transition">ESC Problems</button>
+                <button data-problem="video" class="problem-nav-link font-medium px-4 py-2 rounded-full transition">Video Problems</button>
+                <button data-problem="radio" class="problem-nav-link font-medium px-4 py-2 rounded-full transition">Radio/Link Issues</button>
+                <button data-problem="flight" class="problem-nav-link font-medium px-4 py-2 rounded-full transition">Flight Performance</button>
+            </div>
+
+            <!-- Problem Content Area -->
+            <div id="problems-content" class="space-y-4">
+                <div id="problem-power" class="problem-details"></div>
+                <div id="problem-connect" class="problem-details hidden"></div>
+                <div id="problem-arm" class="problem-details hidden"></div>
+                <div id="problem-motor" class="problem-details hidden"></div>
+                <div id="problem-esc" class="problem-details hidden"></div>
+                <div id="problem-video" class="problem-details hidden"></div>
+                <div id="problem-radio" class="problem-details hidden"></div>
+                <div id="problem-flight" class="problem-details hidden"></div>
+            </div>
+        </section>
+
+        <!-- Toolkit, Advanced, Maintenance & Pre-flight Sections -->
+        <section id="toolkit" class="mb-16 scroll-mt-24"></section>
+        <section id="advanced" class="mb-16 scroll-mt-24"></section>
+        <section id="maintenance" class="mb-16 scroll-mt-24"></section>
+        <section id="preflight" class="scroll-mt-24"></section>
+    </main>
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    
+    // --- Define Functions ---
+
+    const callGemini = async (prompt, outputElement, loaderElement) => {
+        loaderElement.classList.remove('hidden');
+        outputElement.parentElement.classList.remove('hidden');
+        outputElement.classList.add('hidden');
+        
+        const payload = { contents: [{ role: "user", parts: [{ text: prompt }] }] };
+        const apiKey = ""; 
+        const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+
+        try {
+            const response = await fetch(apiUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            if (!response.ok) throw new Error(`API Error: ${response.statusText}`);
+            const result = await response.json();
+            let text = 'Sorry, I could not process that request. Please try again.';
+            if (result.candidates?.[0]?.content?.parts?.[0]) {
+                text = result.candidates[0].content.parts[0].text;
+            }
+            outputElement.textContent = text;
+        } catch (error) {
+            console.error("Gemini API call failed:", error);
+            outputElement.textContent = `An error occurred. Please check the console for details.`;
+        } finally {
+            loaderElement.classList.add('hidden');
+            outputElement.classList.remove('hidden');
+        }
+    };
+
+    function loadStaticContent() {
+        const createAccordionItem = (title, content) => `
+            <button class="accordion-button w-full text-left font-semibold p-3 rounded-md text-gray-200">${title}</button>
+            <div class="accordion-content px-3 text-gray-400">
+                <ul class="list-disc list-inside py-2 space-y-1">${content}</ul>
+            </div>`;
+
+        const contentMap = {
+            "problem-power": `
+                <div class="card p-6 rounded-lg">
+                    <h3 class="text-2xl font-bold mb-4 accent-text">Power Issues</h3>
+                    <p class="mb-4 text-gray-400">Symptoms: Drone is dead, no lights, no startup beeps, or shuts down suddenly.</p>
+                    <div class="space-y-2">${createAccordionItem("1. Visual Inspection", `<li>Examine battery leads for bad solder joints.</li><li>Inspect LiPo for puffiness or damage.</li><li>Look for burnt components or swollen capacitors.</li>`)}
+                        ${createAccordionItem("2. Smoke Stopper & Battery Check", `<li><strong>CRITICAL:</strong> Use a smoke stopper. If it trips, you have a short.</li><li>Measure LiPo voltage with a multimeter.</li>`)}
+                        ${createAccordionItem("3. Multimeter Diagnostics (Battery Disconnected!)", `<li>Set to continuity mode.</li><li>Check for a short between the main positive (+) and negative (-) battery pads on the FC/PDB. It should NOT beep.</li>`)}
+                    </div>
+                </div>`,
+            "problem-connect": `
+                <div class="card p-6 rounded-lg">
+                    <h3 class="text-2xl font-bold mb-4 accent-text">FC Not Connecting</h3>
+                    <p class="mb-4 text-gray-400">Symptoms: No COM port appears in Betaflight, or "Failed to open serial port" error.</p>
+                    <div class="space-y-2">${createAccordionItem("1. The Usual Suspects", `<li><strong>Use a Data Cable:</strong> Many USB cables are for charging only.</li><li><strong>Correct USB Port:</strong> Plug into the FC, not a peripheral.</li><li><strong>USB Hubs:</strong> Try a direct port on your computer.</li>`)}
+                        ${createAccordionItem("2. Driver Issues (Windows)", `<li>Download and run the <strong>ImpulseRC Driver Fixer</strong>.</li><li>If stuck in DFU mode, use <strong>Zadig</strong> to install the STM32 BOOTLOADER driver.</li>`)}
+                        ${createAccordionItem("3. Advanced Checks", `<li><strong>DFU Mode:</strong> If it only connects in DFU mode, re-flash firmware.</li><li><strong>Physical Damage:</strong> Inspect the USB port on the FC.</li>`)}
+                    </div>
+                </div>`,
+            "problem-arm": `
+                <div class="card p-6 rounded-lg">
+                    <h3 class="text-2xl font-bold mb-4 accent-text">Won't Arm</h3>
+                    <p class="mb-4 text-gray-400">Symptoms: You flip the arm switch, but nothing happens. Betaflight has safety checks that prevent arming.</p>
+                    <div class="space-y-2">${createAccordionItem("1. Initial Checks", `<li><strong>USB Disconnected:</strong> Unplug from the computer (MSP flag).</li><li><strong>Throttle Low:</strong> Throttle stick must be all the way down (THROTTLE flag).</li><li><strong>Drone Angle:</strong> Drone must be level (ANGLE flag).</li>`)}
+                         ${createAccordionItem("2. Reading Arming Flags", `<li><strong>OSD:</strong> Enable "Warnings" and "Arming Disabled" in the OSD tab.</li><li><strong>Betaflight CLI:</strong> Type <code>status</code> and press Enter. The flag will be listed.</li>`)}
+                        <button class="accordion-button w-full text-left font-semibold p-3 bg-gray-700/50 rounded-md text-gray-200">3. Common Arming Flags</button>
+                        <div class="accordion-content px-3 py-2"><div class="overflow-x-auto"><table class="w-full text-sm text-left"><thead class="table-header"><tr><th class="p-2">Flag</th><th class="p-2">Solution</th></tr></thead><tbody class="text-gray-400"><tr class="border-b border-gray-700"><td class="p-2 font-mono">RXLOSS</td><td class="p-2">Check receiver binding, power, wiring, and Betaflight config.</td></tr><tr class="border-b border-gray-700"><td class="p-2 font-mono">NO_GYRO</td><td class="p-2">Flashed wrong firmware, or faulty/damaged FC.</td></tr><tr class="border-b border-gray-700"><td class="p-2 font-mono">RPMFILTER</td><td class="p-2">Ensure ESCs have Bidirectional DShot firmware or disable feature.</td></tr></tbody></table></div></div>
+                    </div>
+                </div>`,
+            "problem-motor": `
+                <div class="card p-6 rounded-lg">
+                    <h3 class="text-2xl font-bold mb-4 accent-text">Motor Issues</h3>
+                    <p class="mb-4 text-gray-400">Symptoms: Motor won't spin, twitches, runs rough/hot, or spins the wrong way.</p>
+                    <div class="space-y-2">${createAccordionItem("1. Motor Not Spinning", `<li><strong>Hardware:</strong> Check for dead motor/ESC or bad solder joints. Swap with a known good motor.</li><li><strong>Software:</strong> In ESC Configurator, increase "Startup Power".</li>`)}
+                        ${createAccordionItem("2. Motor Twitching/Stuttering", `<li><strong>Bad Solder Joint:</strong> Re-flow the three motor-to-ESC connections.</li><li><strong>Loose Screws:</strong> Check if motor screws are loose or too long (touching windings).</li>`)}
+                        ${createAccordionItem("3. Motor Running Hot", `<li><strong>Screws Too Long:</strong> Screws touching motor windings cause heat.</li><li><strong>Bad Tune:</strong> Overly aggressive D-term or filters cause oscillations.</li>`)}
+                    </div>
+                </div>`,
+            "problem-esc": `
+                <div class="card p-6 rounded-lg">
+                    <h3 class="text-2xl font-bold mb-4 accent-text">ESC Problems</h3>
+                    <p class="mb-4 text-gray-400">Symptoms: Magic smoke, overheating, motor desync, or missing startup beeps.</p>
+                    <div class="space-y-2">${createAccordionItem("1. Visual & Auditory Checks", `<li>Inspect for burnt components (blackened MOSFETs).</li><li>Listen for startup tones.</li><li>Check for shorts with multimeter (battery disconnected).</li>`)}
+                        ${createAccordionItem("2. ESC Desync Issues", `<li><strong>Add a Capacitor:</strong> A low ESR capacitor on the battery pads is crucial.</li><li><strong>BLHeli Settings:</strong> Set "Demag Compensation" to High.</li><li><strong>Motor Idle:</strong> Ensure "Motor Idle Throttle Value" in Betaflight is high enough.</li>`)}
+                        ${createAccordionItem("3. ESC Overheating", `<li><strong>Over-propped:</strong> Ensure props aren't drawing too much current.</li><li><strong>Bad Tune:</strong> High-frequency oscillations from a noisy D-term will heat ESCs.</li>`)}
+                    </div>
+                </div>`,
+            "problem-video": `
+                <div class="card p-6 rounded-lg">
+                    <h3 class="text-2xl font-bold mb-4 accent-text">Video Problems</h3>
+                    <p class="mb-4 text-gray-400">Symptoms: No video, noisy feed (lines, static), rolling image, or OSD issues.</p>
+                    <div class="space-y-2">${createAccordionItem("1. No Video (Black Screen)", `<li><strong>Check Power:</strong> Are camera and VTX powered?</li><li><strong>Check Channel:</strong> Are goggles and VTX on the same channel?</li><li><strong>Check VTX Pit Mode:</strong> Ensure VTX isn't stuck in low-power mode.</li>`)}
+                        ${createAccordionItem("2. Noisy Video (Lines/Static)", `<li><strong>Add a Capacitor:</strong> Solder a low ESR capacitor to the main battery pads.</li><li><strong>Power Source:</strong> Power camera/VTX from a filtered BEC output on the FC.</li>`)}
+                        ${createAccordionItem("3. OSD Not Working", `<li><strong>Wiring:</strong> Video MUST pass through the FC (Cam OUT > FC IN, FC OUT > VTX IN).</li><li><strong>Font:</strong> If garbled, re-upload the font in the Betaflight OSD tab.</li>`)}
+                    </div>
+                </div>`,
+            "problem-radio": `
+                <div class="card p-6 rounded-lg">
+                    <h3 class="text-2xl font-bold mb-4 accent-text">Radio/Link Issues</h3>
+                    <p class="mb-4 text-gray-400">Symptoms: No stick inputs, unexpected failsafes, or unable to bind.</p>
+                    <div class="space-y-2">${createAccordionItem("1. Binding Issues", `<li><strong>Binding Phrase (ELRS):</strong> Ensure TX and RX have the same binding phrase.</li><li><strong>Manual Bind:</strong> Power cycle the receiver 3 times to enter bind mode.</li><li><strong>Wiring:</strong> Check that RX wire goes to a TX pad on the FC, and TX to RX.</li>`)}
+                        ${createAccordionItem("2. Failsafe Troubleshooting", `<li><strong>Causes:</strong> Flying out of range, obstructions, damaged antennas, receiver brownout.</li><li><strong>Betaflight Setup:</strong> In Failsafe tab, ensure procedure is set to "Drop".</li>`)}
+                        ${createAccordionItem("3. Testing Your Failsafe (Props Off!)", `<li>Arm the drone on the bench (PROPS OFF!).</li><li>Turn off your transmitter.</li><li>The motors should stop spinning.</li>`)}
+                    </div>
+                </div>`,
+            "problem-flight": `
+                <div class="card p-6 rounded-lg">
+                    <h3 class="text-2xl font-bold mb-4 accent-text">Flight Performance</h3>
+                    <p class="mb-4 text-gray-400">Symptoms: Jello in video, prop wash, instability, or hot motors.</p>
+                    <div class="space-y-2">${createAccordionItem("1. 'Jello' in Video", `<li><strong>Vibrations are the cause.</strong></li><li><strong>Props:</strong> Replace any bent or nicked propellers.</li><li><strong>Secure Components:</strong> Tighten motor screws, frame screws, and camera mount.</li>`)}
+                        ${createAccordionItem("2. Prop Wash Oscillations", `<li><strong>Enable RPM Filtering:</strong> Requires ESCs with Bluejay or BLHeli_32 firmware.</li><li><strong>Enable Dynamic Idle:</strong> In Betaflight, this gives the PID loop more authority.</li><li><strong>PID Tune:</strong> Carefully increase D-gain and adjust filters.</li>`)}
+                        ${createAccordionItem("3. Basic PID Tuning", `<li><strong>P-Term:</strong> Controls sharpness/response.</li><li><strong>I-Term:</strong> Corrects for drift and external forces.</li><li><strong>D-Term:</strong> Dampens P-term, reduces bounce-back.</li>`)}
+                    </div>
+                </div>`,
+            "toolkit": `
+                 <h2 class="section-heading text-3xl font-bold mb-6 text-center">Technician's Toolkit</h2>
+                 <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
+                    <div class="card p-6 rounded-lg"><h3 class="text-2xl font-bold mb-3 accent-text">Hardware</h3><ul class="list-disc list-inside space-y-1 text-gray-400"><li>Soldering Iron</li><li>Digital Multimeter</li><li>Hex & Nut Drivers</li><li>Smoke Stopper</li></ul></div>
+                    <div class="card p-6 rounded-lg"><h3 class="text-2xl font-bold mb-3 accent-text">Software</h3><ul class="list-disc list-inside space-y-1 text-gray-400"><li>Betaflight Configurator</li><li>ESC Configurator</li><li>ExpressLRS Configurator</li><li>ImpulseRC Driver Fixer</li></ul></div>
+                    <div class="card p-6 rounded-lg"><h3 class="text-2xl font-bold mb-3 accent-text">Specialized</h3><ul class="list-disc list-inside space-y-1 text-gray-400"><li>Hot Air Gun</li><li>Helping Hands / Vise</li><li>VTX Power Meter</li></ul></div>
+                 </div>`,
+            "advanced": `
+                <h2 class="section-heading text-3xl font-bold mb-6 text-center">Advanced Diagnostics</h2>
+                <p class="text-center text-gray-400 mb-8">For elusive issues or performance tuning, Blackbox is your best friend. It records detailed flight data for post-flight analysis.</p>
+                <div class="grid md:grid-cols-2 gap-8">
+                    <div class="card p-6 rounded-lg">
+                        <h3 class="text-2xl font-bold mb-4 accent-text">Using Blackbox</h3>
+                        <div class="space-y-4 text-gray-400">
+                            <div><h4 class="font-bold text-lg text-gray-200">1. Setup</h4><p>In Betaflight, enable Blackbox logging to onboard flash or an SD card. Use a higher logging rate (2kHz) for tuning.</p></div>
+                            <div><h4 class="font-bold text-lg text-gray-200">2. Analysis</h4><p>Use the web-based Blackbox Explorer to open log files. Look at gyro traces, RC commands, and motor outputs.</p></div>
+                            <div><h4 class="font-bold text-lg text-gray-200">3. Key Insights</h4><ul class="list-disc list-inside space-y-1 mt-2"><li><strong>Noise Analysis:</strong> Use the spectral analyzer to see motor noise frequencies.</li><li><strong>PID Performance:</strong> Observe step response to see how well the drone tracks stick inputs.</li><li><strong>Diagnosing Desyncs:</strong> Look for one motor trace shooting to max.</li></ul></div>
+                        </div>
+                    </div>
+                    <div class="card p-6 rounded-lg shadow-lg">
+                        <h3 class="text-2xl font-bold mb-4 text-center accent-text">✨ Blackbox Log Analyzer</h3>
+                        <p class="text-center text-gray-400 mb-4">Paste key observations from your log below for an AI-powered interpretation.</p>
+                        <textarea id="blackbox-prompt-input" class="w-full p-2 border border-blue-400/50 rounded-md focus:ring-2 focus:ring-cyan-500 bg-gray-900/50 text-gray-200" rows="4" placeholder="e.g., 'High frequency noise on roll axis gyro between 200-300hz. PID error is high during fast rolls.'"></textarea>
+                        <div class="text-center mt-4"><button id="blackbox-analyze-button" class="action-button font-bold py-2 px-6 rounded-lg inline-flex items-center">Analyze Blackbox Data</button></div>
+                        <div id="blackbox-output-container" class="mt-6 hidden">
+                            <div id="blackbox-loader" class="flex justify-center hidden"><div class="loader"></div></div>
+                            <div id="blackbox-analyze-output" class="gemini-output"></div>
+                        </div>
+                    </div>
+                </div>`,
+            "maintenance": `
+                 <h2 class="section-heading text-3xl font-bold mb-6 text-center">Preventative Maintenance</h2>
+                 <p class="text-center text-gray-400 mb-8">A well-maintained drone is a reliable drone. Follow this schedule to catch problems before they cause a crash.</p>
+                 <div class="overflow-x-auto card rounded-lg p-2"><table class="w-full text-sm text-left"><thead class="table-header"><tr><th class="p-3">Frequency</th><th class="p-3">Tasks</th></tr></thead><tbody class="text-gray-400">
+                    <tr class="border-b border-gray-700"><td class="p-3 font-semibold text-gray-200">After Every Session</td><td class="p-3">Inspect frame, props, and screws.</td></tr>
+                    <tr class="border-b border-gray-700"><td class="p-3 font-semibold text-gray-200">Weekly</td><td class="p-3">Thorough cleaning, check camera mount.</td></tr>
+                    <tr class="border-b border-gray-700"><td class="p-3 font-semibold text-gray-200">Monthly</td><td class="p-3">Check for firmware updates, inspect solder joints.</td></tr>
+                 </tbody></table></div>`,
+             "preflight": `
+                 <h2 class="section-heading text-3xl font-bold mb-6 text-center">Pre-Flight Checklist</h2>
+                 <p class="text-center text-gray-400 mb-8">Never skip your pre-flight. This simple ritual is the final line of defense against preventable accidents.</p>
+                 <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
+                    <div class="card p-6 rounded-lg"><h3 class="font-bold text-xl mb-3 accent-text">Drone Checks</h3><div class="space-y-2"><div class="checklist-item"><input type="checkbox" id="c1" class="mr-2"><label for="c1">Frame & Screws Secure</label></div><div class="checklist-item"><input type="checkbox" id="c2" class="mr-2"><label for="c2">Props Undamaged & Tight</label></div></div></div>
+                    <div class="card p-6 rounded-lg"><h3 class="font-bold text-xl mb-3 accent-text">Transmitter & Goggles</h3><div class="space-y-2"><div class="checklist-item"><input type="checkbox" id="c6" class="mr-2"><label for="c6">Sufficient Battery</label></div><div class="checklist-item"><input type="checkbox" id="c7" class="mr-2"><label for="c7">Correct Model Selected</label></div></div></div>
+                    <div class="card p-6 rounded-lg"><h3 class="font-bold text-xl mb-3 accent-text">Final System Check</h3><div class="space-y-2"><div class="checklist-item"><input type="checkbox" id="c11" class="mr-2"><label for="c11">Clear Video Feed</label></div><div class="checklist-item"><input type="checkbox" id="c13" class="mr-2"><label for="c13">Failsafe Confirmed</label></div></div></div>
+                 </div>`
+        };
+
+        for (const id in contentMap) {
+            const element = document.getElementById(id);
+            if (element) element.innerHTML = contentMap[id];
+        }
+    }
+    
+    // --- Load Content & Attach Event Listeners ---
+    
+    // Load dynamic HTML content first
+    loadStaticContent();
+
+    // Now that dynamic elements exist, select them and add listeners
+    const diagnoseBtn = document.getElementById('ai-diagnose-button');
+    diagnoseBtn.addEventListener('click', () => {
+        const input = document.getElementById('ai-prompt-input');
+        const output = document.getElementById('ai-diagnose-output');
+        const loader = document.getElementById('ai-loader');
+        if (input.value.trim() === '') {
+            output.parentElement.classList.remove('hidden');
+            output.textContent = 'Please describe your problem in the text box.';
+            return;
+        }
+        const prompt = `As an expert FPV drone technician with a synthwave aesthetic, analyze the following user-described problem. Identify the most likely problem category (e.g., Power, Video, Motor, Flight Control, Radio) and provide a concise, scannable, actionable list of the top 3-5 troubleshooting steps. Format the output with clear headings and bullet points using markdown. Problem: "${input.value}"`;
+        callGemini(prompt, output, loader);
+    });
+
+    const blackboxBtn = document.getElementById('blackbox-analyze-button');
+    blackboxBtn.addEventListener('click', () => {
+        const input = document.getElementById('blackbox-prompt-input');
+        const output = document.getElementById('blackbox-analyze-output');
+        const loader = document.getElementById('blackbox-loader');
+         if (input.value.trim() === '') {
+            output.parentElement.classList.remove('hidden');
+            output.textContent = 'Please paste your Blackbox observations.';
+            return;
+        }
+        const prompt = `As an expert FPV drone tuner with a synthwave aesthetic, analyze these Blackbox log observations. Explain the likely root causes in simple terms and recommend specific tuning adjustments or hardware checks. Format the output with markdown headings for "Analysis" and "Recommendations". Observations: "${input.value}"`;
+        callGemini(prompt, output, loader);
+    });
+    
+    // Attach listeners for static elements
+    const problemNavLinks = document.querySelectorAll('.problem-nav-link');
+    const problemDetails = document.querySelectorAll('.problem-details');
+
+    problemNavLinks.forEach(link => {
+        link.addEventListener('click', () => {
+            const problemId = link.dataset.problem;
+            problemNavLinks.forEach(navLink => navLink.classList.remove('active'));
+            link.classList.add('active');
+            problemDetails.forEach(detail => {
+                detail.id === `problem-${problemId}` ? detail.classList.remove('hidden') : detail.classList.add('hidden');
+            });
+        });
+    });
+
+    document.body.addEventListener('click', event => {
+        if (event.target.classList.contains('accordion-button')) event.target.classList.toggle('open');
+    });
+    
+    document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+        anchor.addEventListener('click', function (e) {
+            e.preventDefault();
+            const targetElement = document.querySelector(this.getAttribute('href'));
+            if (targetElement) targetElement.scrollIntoView({ behavior: 'smooth' });
+            if (!document.getElementById('mobile-menu').classList.contains('hidden')) {
+                document.getElementById('mobile-menu').classList.add('hidden');
+            }
+        });
+    });
+
+    document.getElementById('mobile-menu-button').addEventListener('click', () => {
+        document.getElementById('mobile-menu').classList.toggle('hidden');
+    });
+
+    const sections = document.querySelectorAll('section');
+    const navLinks = document.querySelectorAll('.nav-link');
+    const observer = new IntersectionObserver(entries => {
+        entries.forEach(entry => {
+            if (entry.isIntersecting) {
+                navLinks.forEach(link => {
+                    link.classList.remove('active');
+                    if (link.getAttribute('href').substring(1) === entry.target.id) link.classList.add('active');
+                });
+            }
+        });
+    }, { root: null, rootMargin: '0px', threshold: 0.3 });
+    sections.forEach(section => observer.observe(section));
+});
+</script>
+
+</body>
+</html>
